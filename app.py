@@ -1298,3 +1298,237 @@ if __name__ == '__main__':
     create_tables()
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
+# ═══════════════════════════════════════════════════════════════
+# 💬 چات — زیاد بکە بۆ app.py
+# ═══════════════════════════════════════════════════════════════
+
+from models import Message, Review, Notification  # زیاد بکە بە import ی کۆنەکان
+
+
+def create_notification(user_id, title, message, notif_type='info', link=None):
+    """یارمەتیدەر بۆ دروستکردنی ئاگادارکردنەوە"""
+    n = Notification(user_id=user_id, title=title, message=message,
+                     notif_type=notif_type, link=link)
+    db.session.add(n)
+    db.session.commit()
+
+
+@app.route('/chat')
+@login_required
+def chat():
+    # هەموو گفتوگۆکان بدۆزەوە
+    sent = db.session.query(Message.receiver_id).filter_by(sender_id=current_user.id)
+    received = db.session.query(Message.sender_id).filter_by(receiver_id=current_user.id)
+    user_ids = set([r[0] for r in sent] + [r[0] for r in received])
+
+    conversations = []
+    for uid in user_ids:
+        other = User.query.get(uid)
+        if not other:
+            continue
+        last_msg = Message.query.filter(
+            ((Message.sender_id == current_user.id) & (Message.receiver_id == uid)) |
+            ((Message.sender_id == uid) & (Message.receiver_id == current_user.id))
+        ).order_by(Message.created_at.desc()).first()
+
+        unread = Message.query.filter_by(
+            sender_id=uid, receiver_id=current_user.id, is_read=False
+        ).count()
+
+        conversations.append({'other_user': other, 'last_message': last_msg, 'unread': unread})
+
+    conversations.sort(key=lambda x: x['last_message'].created_at, reverse=True)
+    return render_template('chat.html', conversations=conversations, active_user=None, messages=[])
+
+
+@app.route('/chat/<int:user_id>')
+@login_required
+def chat_with(user_id):
+    other = User.query.get_or_404(user_id)
+
+    # پەیامەکان وەک خوێندراو نیشان بدە
+    Message.query.filter_by(
+        sender_id=user_id, receiver_id=current_user.id, is_read=False
+    ).update({'is_read': True})
+    db.session.commit()
+
+    messages = Message.query.filter(
+        ((Message.sender_id == current_user.id) & (Message.receiver_id == user_id)) |
+        ((Message.sender_id == user_id) & (Message.receiver_id == current_user.id))
+    ).order_by(Message.created_at.asc()).all()
+
+    # گفتوگۆکانی تر
+    sent = db.session.query(Message.receiver_id).filter_by(sender_id=current_user.id)
+    received = db.session.query(Message.sender_id).filter_by(receiver_id=current_user.id)
+    user_ids = set([r[0] for r in sent] + [r[0] for r in received])
+
+    conversations = []
+    for uid in user_ids:
+        ou = User.query.get(uid)
+        if not ou:
+            continue
+        last_msg = Message.query.filter(
+            ((Message.sender_id == current_user.id) & (Message.receiver_id == uid)) |
+            ((Message.sender_id == uid) & (Message.receiver_id == current_user.id))
+        ).order_by(Message.created_at.desc()).first()
+        unread = Message.query.filter_by(sender_id=uid, receiver_id=current_user.id, is_read=False).count()
+        conversations.append({'other_user': ou, 'last_message': last_msg, 'unread': unread})
+
+    conversations.sort(key=lambda x: x['last_message'].created_at if x['last_message'] else datetime.utcnow(), reverse=True)
+    return render_template('chat.html', conversations=conversations, active_user=other, messages=messages)
+
+
+@app.route('/chat/send/<int:receiver_id>', methods=['POST'])
+@login_required
+def send_message(receiver_id):
+    content = request.form.get('content', '').strip()
+    if not content:
+        return redirect(url_for('chat_with', user_id=receiver_id))
+
+    msg = Message(sender_id=current_user.id, receiver_id=receiver_id, content=content)
+    db.session.add(msg)
+    db.session.commit()
+
+    # ئاگادارکردنەوە بۆ وەرگر
+    receiver = User.query.get(receiver_id)
+    if receiver:
+        create_notification(
+            user_id=receiver_id,
+            title='پەیامی نوێ',
+            message=f'{current_user.username} پەیامێکت نێردووە',
+            notif_type='message',
+            link=url_for('chat_with', user_id=current_user.id)
+        )
+
+    return redirect(url_for('chat_with', user_id=receiver_id))
+
+
+# ═══════════════════════════════════════════════════════════════
+# ⭐ نرخدان و کۆمێنت
+# ═══════════════════════════════════════════════════════════════
+
+@app.route('/part/<int:part_id>/review', methods=['POST'])
+@login_required
+def add_review(part_id):
+    part = Part.query.get_or_404(part_id)
+
+    # بینە ئایا پێشتر نرخداوە
+    existing = Review.query.filter_by(part_id=part_id, user_id=current_user.id).first()
+    if existing:
+        flash('پێشتر نرخت داوە بۆ ئەم پارچەیە', 'warning')
+        return redirect(url_for('part_detail', part_id=part_id))
+
+    rating = int(request.form.get('rating', 0))
+    comment = request.form.get('comment', '').strip()
+
+    if not 1 <= rating <= 5:
+        flash('نرخدان پێویستە لە ١ تا ٥ بێت', 'danger')
+        return redirect(url_for('part_detail', part_id=part_id))
+
+    review = Review(part_id=part_id, user_id=current_user.id, rating=rating, comment=comment)
+    db.session.add(review)
+    db.session.commit()
+
+    # ئاگادارکردنەوە بۆ فرۆشیار
+    create_notification(
+        user_id=part.seller_id,
+        title='نرخدانی نوێ ⭐',
+        message=f'{current_user.username} {rating} ئەستێرە دایە بە "{part.name}"',
+        notif_type='review',
+        link=url_for('part_detail', part_id=part_id)
+    )
+
+    flash('نرخدانەکەت تۆمار کرا ✅', 'success')
+    return redirect(url_for('part_detail', part_id=part_id))
+
+
+# ═══════════════════════════════════════════════════════════════
+# 🔔 ئاگادارکردنەوەکان
+# ═══════════════════════════════════════════════════════════════
+
+@app.route('/notifications')
+@login_required
+def notifications():
+    notifs = Notification.query.filter_by(user_id=current_user.id)\
+        .order_by(Notification.created_at.desc()).all()
+    # هەموو وەک خوێندراو نیشان بکە
+    Notification.query.filter_by(user_id=current_user.id, is_read=False).update({'is_read': True})
+    db.session.commit()
+    return render_template('notifications.html', notifications=notifs)
+
+
+@app.route('/notifications/mark-all-read')
+@login_required
+def mark_all_read():
+    Notification.query.filter_by(user_id=current_user.id, is_read=False).update({'is_read': True})
+    db.session.commit()
+    return redirect(url_for('notifications'))
+
+
+@app.context_processor
+def inject_notif_count():
+    """ژمارەی ئاگادارکردنەوەی نەخوێندراو بۆ هەموو پەڕەیەک"""
+    if current_user.is_authenticated:
+        unread_notifs = Notification.query.filter_by(
+            user_id=current_user.id, is_read=False
+        ).count()
+        unread_msgs = Message.query.filter_by(
+            receiver_id=current_user.id, is_read=False
+        ).count()
+        return dict(unread_notifs=unread_notifs, unread_msgs=unread_msgs)
+    return dict(unread_notifs=0, unread_msgs=0)
+
+
+# ═══════════════════════════════════════════════════════════════
+# 🔍 گەڕانی باشتر و فلتەر
+# ═══════════════════════════════════════════════════════════════
+
+@app.route('/search')
+def search():
+    q = request.args.get('q', '').strip()
+    brand = request.args.get('brand', '')
+    city = request.args.get('city', '')
+    min_price = request.args.get('min_price', type=float)
+    max_price = request.args.get('max_price', type=float)
+    condition = request.args.get('condition', '')  # new / used
+    sort = request.args.get('sort', 'newest')  # newest / price_asc / price_desc / rating
+
+    query = Part.query
+
+    if q:
+        query = query.filter(
+            Part.name.ilike(f'%{q}%') |
+            Part.description.ilike(f'%{q}%') |
+            Part.car_model.ilike(f'%{q}%')
+        )
+    if brand:
+        query = query.filter(Part.car_brand == brand)
+    if city:
+        query = query.filter(Part.city == city)
+    if min_price is not None:
+        query = query.filter(Part.price >= min_price)
+    if max_price is not None:
+        query = query.filter(Part.price <= max_price)
+    if condition:
+        query = query.filter(Part.condition == condition)
+
+    if sort == 'price_asc':
+        query = query.order_by(Part.price.asc())
+    elif sort == 'price_desc':
+        query = query.order_by(Part.price.desc())
+    elif sort == 'popular':
+        query = query.order_by(Part.views.desc())
+    else:
+        query = query.order_by(Part.created_at.desc())
+
+    parts = query.all()
+
+    from models import CAR_BRANDS, IRAQ_CITIES
+    return render_template('search.html',
+        parts=parts, q=q, brand=brand, city=city,
+        min_price=min_price, max_price=max_price,
+        condition=condition, sort=sort,
+        car_brands=CAR_BRANDS, cities=IRAQ_CITIES,
+        result_count=len(parts)
+    )
