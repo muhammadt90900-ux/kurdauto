@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4" style="max-width:900px">
+  <h4 class="mb-4" style="color:var(--gold)">💬 پەیامەکانم</h4>
+
+  <div class="row g-0" style="border:1px solid #333;border-radius:12px;overflow:hidden;min-height:500px">
+
+    <!-- لیستی گفتوگۆکان -->
+    <div class="col-md-4" style="border-left:1px solid #333;background:#1a1a1a">
+      {% for conv in conversations %}
+      <a href="{{ url_for('chat_with', user_id=conv.other_user.id) }}"
+         class="d-flex align-items-center p-3 text-decoration-none
+                {% if active_user and active_user.id == conv.other_user.id %}active-conv{% endif %}"
+         style="border-bottom:1px solid #2a2a2a;color:#fff;transition:.2s">
+        <img src="{{ conv.other_user.profile_image or url_for('static', filename='default-avatar.png') }}"
+             class="rounded-circle me-2" style="width:42px;height:42px;object-fit:cover">
+        <div class="flex-grow-1 overflow-hidden">
+          <div class="d-flex justify-content-between">
+            <span style="font-weight:600">{{ conv.other_user.username }}</span>
+            {% if conv.unread > 0 %}
+            <span class="badge rounded-pill" style="background:var(--gold);color:#000">{{ conv.unread }}</span>
+            {% endif %}
+          </div>
+          <small style="color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">
+            {{ conv.last_message.content[:40] }}...
+          </small>
+        </div>
+      </a>
+      {% else %}
+      <div class="p-4 text-center" style="color:#666">هیچ گفتوگۆیەک نیە</div>
+      {% endfor %}
+    </div>
+
+    <!-- ناوەرۆکی گفتوگۆ -->
+    <div class="col-md-8 d-flex flex-column" style="background:#111">
+      {% if active_user %}
+      <div class="p-3" style="border-bottom:1px solid #333;background:#1a1a1a">
+        <strong>{{ active_user.username }}</strong>
+      </div>
+
+      <div class="flex-grow-1 p-3 overflow-auto" id="msg-box" style="max-height:400px">
+        {% for msg in messages %}
+        <div class="mb-3 d-flex {% if msg.sender_id == current_user.id %}justify-content-start{% else %}justify-content-end{% endif %}">
+          <div style="max-width:70%;padding:10px 14px;border-radius:16px;
+               background:{% if msg.sender_id == current_user.id %}#2a2a2a{% else %}var(--gold){% endif %};
+               color:{% if msg.sender_id == current_user.id %}#fff{% else %}#000{% endif %}">
+            {{ msg.content }}
+            <div style="font-size:.7rem;opacity:.6;margin-top:4px">{{ msg.time_ago() }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <form method="POST" action="{{ url_for('send_message', receiver_id=active_user.id) }}"
+            class="p-3 d-flex gap-2" style="border-top:1px solid #333">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input name="content" class="form-control" placeholder="پەیامێک بنووسە..." required
+               style="background:#2a2a2a;border:1px solid #444;color:#fff;border-radius:20px">
+        <button class="btn" style="background:var(--gold);color:#000;border-radius:20px;padding:8px 20px">
+          ناردن ↑
+        </button>
+      </form>
+
+      {% else %}
+      <div class="flex-grow-1 d-flex align-items-center justify-content-center" style="color:#555">
+        <div class="text-center">
+          <div style="font-size:3rem">💬</div>
+          <p>گفتوگۆیەک هەڵبژێرە</p>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<style>
+.active-conv { background:#2a2a2a !important; }
+</style>
+
+<script>
+  // scroll to bottom
+  const box = document.getElementById('msg-box');
+  if(box) box.scrollTop = box.scrollHeight;
+</script>
+{% endblock %}

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+  <h4 class="mb-4" style="color:var(--gold)">🔍 گەڕان و فلتەر</h4>
+
+  <!-- فۆرمی گەڕان -->
+  <form method="GET" action="{{ url_for('search') }}" class="mb-4">
+    <div class="row g-2">
+      <div class="col-12 col-md-4">
+        <input name="q" value="{{ q }}" class="form-control" placeholder="ناوی پارچە، مۆدێل..."
+               style="background:#1a1a1a;border:1px solid #444;color:#fff">
+      </div>
+      <div class="col-6 col-md-2">
+        <select name="brand" class="form-select" style="background:#1a1a1a;border:1px solid #444;color:#fff">
+          <option value="">هەموو مارکەکان</option>
+          {% for b in car_brands %}
+          <option value="{{ b }}" {% if brand==b %}selected{% endif %}>{{ b }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <select name="city" class="form-select" style="background:#1a1a1a;border:1px solid #444;color:#fff">
+          <option value="">هەموو شارەکان</option>
+          {% for c in cities %}
+          <option value="{{ c }}" {% if city==c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-1">
+        <input name="min_price" type="number" value="{{ min_price or '' }}" placeholder="کەمترین نرخ"
+               class="form-control" style="background:#1a1a1a;border:1px solid #444;color:#fff">
+      </div>
+      <div class="col-6 col-md-1">
+        <input name="max_price" type="number" value="{{ max_price or '' }}" placeholder="زۆرترین نرخ"
+               class="form-control" style="background:#1a1a1a;border:1px solid #444;color:#fff">
+      </div>
+      <div class="col-6 col-md-1">
+        <select name="condition" class="form-select" style="background:#1a1a1a;border:1px solid #444;color:#fff">
+          <option value="">هەموو</option>
+          <option value="new" {% if condition=='new' %}selected{% endif %}>نوێ</option>
+          <option value="used" {% if condition=='used' %}selected{% endif %}>بەکارهاتوو</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-1">
+        <select name="sort" class="form-select" style="background:#1a1a1a;border:1px solid #444;color:#fff">
+          <option value="newest" {% if sort=='newest' %}selected{% endif %}>نوێترین</option>
+          <option value="price_asc" {% if sort=='price_asc' %}selected{% endif %}>نرخ ↑</option>
+          <option value="price_desc" {% if sort=='price_desc' %}selected{% endif %}>نرخ ↓</option>
+          <option value="popular" {% if sort=='popular' %}selected{% endif %}>بینراوترین</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-12">
+        <button class="btn w-100" style="background:var(--gold);color:#000">گەڕان 🔍</button>
+      </div>
+    </div>
+  </form>
+
+  <p style="color:#888">{{ result_count }} ئەنجام دۆزراوەتەوە</p>
+
+  <div class="row g-3">
+    {% for part in parts %}
+    <div class="col-6 col-md-4 col-lg-3">
+      <a href="{{ url_for('part_detail', part_id=part.id) }}" class="text-decoration-none">
+        <div class="card h-100" style="background:#1a1a1a;border:1px solid #333;border-radius:12px;overflow:hidden">
+          {% if part.image_url %}
+          <img src="{{ part.image_url }}" style="height:160px;object-fit:cover;width:100%">
+          {% endif %}
+          <div class="p-2">
+            <div style="font-weight:600;color:#fff;font-size:.9rem">{{ part.name }}</div>
+            <div style="color:var(--gold);font-weight:700">${{ part.price }}</div>
+            <div style="color:#888;font-size:.8rem">{{ part.city }} • {{ part.car_brand }}</div>
+            {% if part.avg_rating > 0 %}
+            <div style="color:#ffc107;font-size:.8rem">
+              {% for i in range(part.avg_rating|int) %}⭐{% endfor %}
+              ({{ part.review_count }})
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </a>
+    </div>
+    {% else %}
+    <div class="col-12 text-center py-5" style="color:#666">
+      <div style="font-size:3rem">🔍</div>
+      <p>هیچ ئەنجامێک نەدۆزراوەتەوە</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
