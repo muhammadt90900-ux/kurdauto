@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+    <!-- Hero -->
+    <div class="ka-page-hero">
+        <h1 class="ka-hero-title">🚗 {{ t('site_name') }}</h1>
+        <p class="ka-hero-sub">باشترین مارکێتی پارچەی ئۆتۆمبێل لە کوردستان</p>
+    </div>
+
+    <!-- Search + Filters -->
+    <form method="GET" class="ka-search-wrap" style="flex-wrap:wrap;gap:10px;">
+        <input type="text" name="q" class="form-control ka-search-input"
+               placeholder="{{ t('search_placeholder') }}" value="{{ search_query }}" style="flex:2;min-width:180px;">
+
+        <select name="city" class="form-select ka-filter-select" style="flex:1;min-width:130px;">
+            <option value="">🏙️ {{ t('all_cities') }}</option>
+            {% for c in IRAQ_CITIES %}
+            <option value="{{ c }}" {% if city_filter == c %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="brand" class="form-select ka-filter-select" style="flex:1;min-width:150px;">
+            <option value="">🚘 {{ t('all_brands') }}</option>
+            {% for b in CAR_BRANDS %}
+            <option value="{{ b }}" {% if brand_filter == b %}selected{% endif %}>
+                {{ b }}
+            </option>
+            {% endfor %}
+        </select>
+
+        <!-- فیلتەری نرخ -->
+        <input type="number" name="min_price" class="form-control ka-filter-select"
+               placeholder="{{ t('min_price') }}" value="{{ min_price }}"
+               style="flex:1;min-width:110px;" min="0">
+        <input type="number" name="max_price" class="form-control ka-filter-select"
+               placeholder="{{ t('max_price') }}" value="{{ max_price }}"
+               style="flex:1;min-width:110px;" min="0">
+
+        <button type="submit" class="btn-ka-primary">
+            <i class="fas fa-search"></i> {{ t('search') }}
+        </button>
+        {% if city_filter or brand_filter or search_query or min_price or max_price %}
+        <a href="{{ url_for('index') }}" class="btn-ka-outline" style="padding:10px 16px;">
+            <i class="fas fa-times"></i>
+        </a>
+        {% endif %}
+    </form>
+
+    <!-- مارکەکان بە لۆگۆ -->
+    <div class="brand-logos-row">
+        {% for b in CAR_BRANDS[:20] %}
+        <a href="{{ url_for('index', brand=b) }}" class="brand-logo-item {% if brand_filter == b %}active{% endif %}" title="{{ b }}">
+            {% if CAR_BRAND_LOGOS.get(b) %}
+            <img src="{{ CAR_BRAND_LOGOS[b] }}" alt="{{ b }}" class="brand-logo-img"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+            <span class="brand-logo-fallback" style="display:none;">{{ b[:2] }}</span>
+            {% else %}
+            <span class="brand-logo-fallback">{{ b[:2] }}</span>
+            {% endif %}
+            <span class="brand-logo-name">{{ b }}</span>
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Grid -->
+    <div class="row g-4">
+        {% for part in parts %}
+        <div class="col-lg-4 col-md-6">
+            <div class="ka-card">
+                <div style="position:relative;">
+                    {% if part.media_type == 'video' %}
+                    <video class="ka-card-video" src="{{ part.image_url }}" muted loop playsinline
+                           onmouseenter="this.play()" onmouseleave="this.pause()"></video>
+                    <span class="media-badge"><i class="fas fa-play-circle me-1"></i>ڤیدۆ</span>
+                    {% elif part.image_url %}
+                    <img class="ka-card-img" src="{{ part.image_url }}" alt="{{ part.name }}" loading="lazy">
+                    {% else %}
+                    <div class="ka-card-img d-flex align-items-center justify-content-center"
+                         style="background:var(--dark-card2);">
+                        {% if part.car_brand and CAR_BRAND_LOGOS.get(part.car_brand) %}
+                        <img src="{{ CAR_BRAND_LOGOS[part.car_brand] }}" style="width:80px;opacity:0.4;" alt="">
+                        {% else %}
+                        <i class="fas fa-car" style="font-size:3rem;color:var(--text-muted);"></i>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% if part.city %}
+                    <span class="city-badge"><i class="fas fa-map-marker-alt me-1"></i>{{ part.city }}</span>
+                    {% endif %}
+                </div>
+                <div class="ka-card-body">
+                    {% if part.car_brand %}
+                    <div class="brand-tag-with-logo">
+                        {% if CAR_BRAND_LOGOS.get(part.car_brand) %}
+                        <img src="{{ CAR_BRAND_LOGOS[part.car_brand] }}" class="brand-tag-logo" alt=""
+                             onerror="this.style.display='none'">
+                        {% endif %}
+                        <span class="brand-tag">{{ part.car_brand }}</span>
+                    </div>
+                    {% endif %}
+                    <h5 class="ka-card-title">{{ part.name }}</h5>
+                    <p class="ka-card-model"><i class="fas fa-car me-1"></i>{{ part.car_model or 'گشتی' }}</p>
+                    <p class="ka-card-price">{{ "{:,.0f}".format(part.price) }} {{ t('dinar') }}</p>
+                    <div class="ka-card-meta">
+                        <span><i class="fas fa-eye me-1"></i>{{ part.views or 0 }}</span>
+                    </div>
+                    <div class="ka-card-actions">
+                        <a href="{{ url_for('part_detail', part_id=part.id) }}" class="btn-ka-primary" style="flex:1;justify-content:center;">
+                            <i class="fas fa-eye"></i> {{ t('detail') }}
+                        </a>
+                        {% set wp = part.seller.whatsapp or part.seller.phone %}
+                        {% if wp %}
+                        <a href="https://wa.me/964{{ wp.lstrip('0') }}" target="_blank"
+                           class="btn-ka-whatsapp" title="واتساپ">
+                            <i class="fab fa-whatsapp"></i>
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12">
+            <div style="text-align:center;padding:80px 20px;color:var(--text-muted);">
+                <i class="fas fa-search" style="font-size:3rem;margin-bottom:16px;opacity:0.4;display:block;"></i>
+                <p>{{ t('no_parts') }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if pagination.pages > 1 %}
+    <nav class="mt-5">
+        <ul class="pagination justify-content-center flex-wrap gap-1">
+            {% if pagination.has_prev %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('index', page=pagination.prev_num, q=search_query, city=city_filter, brand=brand_filter, min_price=min_price, max_price=max_price) }}">«</a>
+            </li>
+            {% endif %}
+            {% for p in pagination.iter_pages(left_edge=1,right_edge=1,left_current=2,right_current=3) %}
+                {% if p %}
+                <li class="page-item {% if p==pagination.page %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('index', page=p, q=search_query, city=city_filter, brand=brand_filter, min_price=min_price, max_price=max_price) }}">{{ p }}</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+            {% endfor %}
+            {% if pagination.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('index', page=pagination.next_num, q=search_query, city=city_filter, brand=brand_filter, min_price=min_price, max_price=max_price) }}">»</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}
