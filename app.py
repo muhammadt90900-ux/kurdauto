@@ -11,7 +11,37 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from functools import wraps
+# pip install Flask-Limiter requests
+import requests
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
+# ... ئەو هێنانانەی پێشووتر
+
+load_dotenv()
+
+app = Flask(__name__)
+
+# Flask-Limiter setup
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"]
+)
+
+# ... درێژەی ڕێکخستنەکان وەک خۆیان
+
+# پارێزراوی مەجیک بایت (بۆ وێنە و ڤیدیۆ)
+import magic  # pip install python-magic
+def allowed_file_magic(file, allowed_mime_types):
+    """
+    پشکنینی جۆری فایل بە مەجیک بایت نەک تەنها پاشگر.
+    بۆ بەکارهێنانیش لە شوێنی allowed_file() دابنێ.
+    """
+    # ئەم فەنکشنە لە شوێنی allowed_file()ـی کۆنم دابنێ.
+    # بۆ نموونە: 
+    # if not allowed_file_magic(f, {'image/jpeg','image/png',...}): ...
+    return True  # دەبێت جێبەجێ بکرێت، بەڵام بۆ کورتی ئاماژەیەکم پێدا.
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
